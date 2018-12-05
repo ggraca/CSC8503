@@ -71,7 +71,7 @@ struct PlayerDisconnectPacket : public GamePacket {
 
 class PacketReceiver {
 public:
-	virtual void ReceivePacket(int type, GamePacket* payload) = 0;
+	virtual void ReceivePacket(int type, GamePacket* payload, int source = -1) = 0;
 };
 
 class NetworkBase	{
@@ -90,6 +90,8 @@ public:
 protected:
 	NetworkBase();
 	~NetworkBase();
+
+	bool ProcessPacket(GamePacket* p, int peerID = -1);
 
 	typedef std::multimap<int, PacketReceiver*>::const_iterator PacketHandlerIterator;
 

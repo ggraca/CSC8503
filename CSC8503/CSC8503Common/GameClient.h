@@ -15,9 +15,9 @@ namespace NCL {
 			bool Connect(uint8_t a, uint8_t b, uint8_t c, uint8_t d, int portNum);
 
 			void SendPacket(GamePacket&  payload);
+			void UpdateClient();
 
 		protected:
-			void UpdateClient();
 			void ThreadedUpdate();
 
 			ENetPeer*	netPeer;
@@ -26,4 +26,3 @@ namespace NCL {
 		};
 	}
 }
-

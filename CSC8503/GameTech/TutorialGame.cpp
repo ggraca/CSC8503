@@ -44,7 +44,7 @@ void TutorialGame::InitialiseAssets() {
 	basicShader = new OGLShader("GameTechVert.glsl", "GameTechFrag.glsl");
 
 	InitCamera();
-	//InitWorld();
+	InitWorld();
 }
 
 TutorialGame::~TutorialGame()	{
@@ -77,7 +77,7 @@ void TutorialGame::UpdateGame(float dt) {
 
 	world->UpdateWorld(dt);
 	renderer->Update(dt);
-	physics->Update(dt);
+	//physics->Update(dt);
 
 	Debug::FlushRenderables();
 	renderer->Render();

@@ -11,6 +11,7 @@ namespace NCL {
             Coursework();
             ~Coursework();
         protected:
+            void LoadObstacles(string levelName);
         };
     }
 }

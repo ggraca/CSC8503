@@ -19,12 +19,13 @@ namespace NCL {
 
 			void ThreadedUpdate();
 
-			bool SendGlobalMessage(int msgID);
-			bool SendGlobalMessage(GamePacket& packet);
+			bool SendGlobalPacket(int msgID);
+			bool SendGlobalPacket(GamePacket& packet);
 
 			void BroadcastSnapshot(bool deltaFrame);
 			void UpdateMinimumState();
 
+			virtual void UpdateServer();
 		protected:
 			int			port;
 			int			clientMax;
@@ -33,7 +34,6 @@ namespace NCL {
 
 			std::atomic<bool> threadAlive;
 
-			virtual void UpdateServer();
 
 			std::thread updateThread;
 

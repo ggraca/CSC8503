@@ -59,8 +59,51 @@ void TestStateMachine() {
 }
 
 
-void TestNetworking() {
+class TestPacketReceiver : public PacketReceiver {
+public:
+	TestPacketReceiver(string name) { this->name = name; }
+	void ReceivePacket(int type, GamePacket* payload, int source) {
+		if (type == String) {
+			StringPacket* realPacket = (StringPacket*)payload;
+			string msg = realPacket->GetStringFromData();
+			std::cout << name << " receive message: " << msg << std::endl;
+		}
+	}
+protected:
+	string name;
+};
 
+void TestNetworking() {
+	NetworkBase::Initialise();
+
+	TestPacketReceiver serverReceiver("Server");
+	TestPacketReceiver clientReceiver("Client");
+
+	int port = NetworkBase::GetDefaultPort();
+
+	GameServer* server = new GameServer(port, 1);
+	GameClient* client = new GameClient();
+
+	server->RegisterPacketHandler(String, &serverReceiver);
+	client->RegisterPacketHandler(String, &clientReceiver);
+
+	bool canConnect = client->Connect(127, 0, 0, 1, port);
+
+	for(int i = 0; i < 100; i++) {
+		server->SendGlobalPacket(
+			StringPacket("Server says hello! " + std::to_string(i))
+		);
+		client->SendPacket(
+			StringPacket("Client says hello! " + std::to_string(i))
+		);
+
+		server->UpdateServer();
+		client->UpdateClient();
+
+		std::this_thread::sleep_for(std::chrono::milliseconds(10));
+	}
+
+	NetworkBase::Destroy();
 }
 
 vector<Vector3> testNodes;
@@ -108,13 +151,13 @@ int main() {
 		return -1;
 	}
 	TestStateMachine();
-	//TestNetworking();
+	TestNetworking();
 	TestPathfinding();
 
 	w->ShowOSPointer(false);
 	w->LockMouseToWindow(true);
 
-	//TutorialGame* g = new TutorialGame();
+	// TutorialGame* g = new TutorialGame();
 	Coursework* g = new Coursework();
 
 	while (w->UpdateWindow() && !Window::GetKeyboard()->KeyDown(KEYBOARD_ESCAPE)) {
