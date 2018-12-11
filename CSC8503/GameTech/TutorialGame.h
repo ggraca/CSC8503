@@ -58,6 +58,9 @@ namespace NCL {
 			OGLMesh*	cubeMesh	= nullptr;
 			OGLMesh*	sphereMesh	= nullptr;
 			OGLTexture* basicTex	= nullptr;
+			OGLTexture* woodTex	= nullptr;
+			OGLTexture* grassTex	= nullptr;
+			OGLTexture* ballTex	= nullptr;
 			OGLShader*	basicShader = nullptr;
 		};
 	}

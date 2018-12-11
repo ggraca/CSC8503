@@ -138,8 +138,10 @@ void PhysicsSystem::BasicCollisionDetection() {
 
 	for (auto i = first; i != last; i++) {
 		if ((*i)->GetPhysicsObject() == nullptr) continue;
+		if ((*i)->GetPhysicsObject()->GetInverseMass() == 0) continue;
 
-		for (auto j = i + 1; j != last; j++) {
+		for (auto j = first; j != last; j++) {
+			if (j == i) continue;
 			if ((*j)->GetPhysicsObject() == nullptr) continue;
 
 			CollisionDetection::CollisionInfo info;

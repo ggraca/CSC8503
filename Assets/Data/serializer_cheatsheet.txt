@@ -1,0 +1,16 @@
+CLIENT --------------------------------------
+h -> hello
+
+SERVER --------------------------------------
+h -> hello
+name
+levelname
+
+u -> update
+levelName
+nplayers
+name pos
+
+m -> message
+
+p -> play

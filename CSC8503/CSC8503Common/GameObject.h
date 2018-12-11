@@ -63,8 +63,14 @@ namespace NCL {
 				return name;
 			}
 
+			void SetName(string s) {
+				name = s;
+			}
+
 			virtual void OnCollisionBegin(GameObject* otherObject) {
-				//std::cout << "OnCollisionBegin event occured!\n";
+				if (name != "goal") return;
+				if (otherObject->name == "") return;
+				if (winner == nullptr) winner = otherObject;
 			}
 
 			virtual void OnCollisionEnd(GameObject* otherObject) {
@@ -73,6 +79,9 @@ namespace NCL {
 
 			bool InsideAABB(const Vector3& pos, const Vector3& halfSize);
 
+			GameObject* GetWinner() const {
+				return winner;
+			}
 		protected:
 			Transform			transform;
 
@@ -83,7 +92,7 @@ namespace NCL {
 
 			bool	isActive;
 			string	name;
+			GameObject* winner = nullptr;
 		};
 	}
 }
-

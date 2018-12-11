@@ -7,7 +7,7 @@ enum BasicNetworkMessages {
 	None,
 	Hello,
 	Message,
-	String,
+	StringMessage,
 	Delta_State,	//1 byte per channel since the last state
 	Full_State,		//Full transform etc
 	Received_State, //received from a client, informs that its received packet n
@@ -38,7 +38,7 @@ struct StringPacket : public GamePacket {
 	char	stringData[256];
 
 	StringPacket(const std::string& message) {
-		type		= BasicNetworkMessages::String;
+		type		= BasicNetworkMessages::StringMessage;
 		size		= (short)message.length();
 
 		memcpy(stringData, message.data(), size);

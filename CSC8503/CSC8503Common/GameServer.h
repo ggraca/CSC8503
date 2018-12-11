@@ -26,6 +26,7 @@ namespace NCL {
 			void UpdateMinimumState();
 
 			virtual void UpdateServer();
+			bool newClient = false;
 		protected:
 			int			port;
 			int			clientMax;
@@ -41,6 +42,7 @@ namespace NCL {
 			int outgoingDataRate;
 
 			std::map<int, int> stateIDs;
+
 		};
 	}
 }
