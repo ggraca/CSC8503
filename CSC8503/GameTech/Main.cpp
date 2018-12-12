@@ -95,11 +95,11 @@ void TestStateMachine() {
 vector<Vector3> testNodes;
 
 void TestPathfinding() {
-	NavigationGrid grid("TestGrid1.txt");
+	NavigationGrid grid("level1.txt");
 	NavigationPath outPath;
 
-	Vector3 startPos(10, 0, 10);
-	Vector3 endPos(80, 0, 80);
+	Vector3 startPos(280, 0, 220);
+	Vector3 endPos(120, 0, 40);
 
 	bool found = grid.FindPath(startPos, endPos, outPath);
 
@@ -141,7 +141,7 @@ int main() {
 
 	// TestStateMachine();
 	// TestNetworking();
-	// TestPathfinding();
+	//TestPathfinding();
 
 	w->ShowOSPointer(false);
 	w->LockMouseToWindow(true);

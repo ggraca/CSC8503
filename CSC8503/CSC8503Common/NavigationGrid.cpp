@@ -2,6 +2,8 @@
 #include "../../Common/Assets.h"
 
 #include <fstream>
+#include <string>
+
 
 using namespace NCL;
 using namespace CSC8503;
@@ -33,9 +35,9 @@ NavigationGrid::NavigationGrid(const std::string&filename) : NavigationGrid() {
 	for(int y = 0; y < gridHeight; ++y) {
 		for(int x = 0; x < gridWidth; ++x) {
 			GridNode&n = allNodes[(gridWidth * y) + x];
-			char type = 0;
+			std::string type;
 			infile >> type;
-			n.type = type;
+			n.type = type[0];
 			n.position = Vector3(x * gridWidth, 0, y * gridHeight);
 		}
 	}
@@ -59,11 +61,11 @@ NavigationGrid::NavigationGrid(const std::string&filename) : NavigationGrid() {
 			}
 			for(int i = 0; i < 4; ++i) {
 				if (n.connected[i]) {
-					if (n.connected[i]->type == '.') {
-						n.costs[i]		= 1;
-					}
 					if (n.connected[i]->type == 'x') {
 						n.connected[i] = nullptr; //actually a wall, disconnect!
+					}
+					else {
+						n.costs[i]		= 1;
 					}
 				}
 			}

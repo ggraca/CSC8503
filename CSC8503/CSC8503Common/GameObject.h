@@ -70,6 +70,7 @@ namespace NCL {
 			virtual void OnCollisionBegin(GameObject* otherObject) {
 				if (name != "goal") return;
 				if (otherObject->name == "") return;
+
 				if (winner == nullptr) winner = otherObject;
 			}
 

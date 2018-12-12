@@ -27,6 +27,7 @@ Coursework::Coursework() : TutorialGame() {
 
     InitNetwork();
 
+    levels.push_back("level3.txt");
     levels.push_back("level1.txt");
     levels.push_back("level2.txt");
 
@@ -72,9 +73,8 @@ void Coursework::ResetWorld() {
     world->ClearAndErase();
     physics->Clear();
 
-    for (auto p : players) {
-        p->ball = nullptr;
-    }
+    for (auto p : players) p->ball = nullptr;
+    bots.clear();
     spawns.clear();
     goal = nullptr;
 
@@ -88,10 +88,11 @@ void Coursework::LoadLevel(string levelName) {
     ResetWorld();
 
     int width, height, scale;
-    char val;
+    string val;
     std::ifstream infile(Assets::DATADIR + levelName);
 
-    scale = 10;
+    infile >> scale;
+    scale /= 2;
     infile >> width;
     infile >> height;
 
@@ -99,17 +100,21 @@ void Coursework::LoadLevel(string levelName) {
         for(int x = 0; x < width; x++) {
             infile >> val;
 
-            Vector3 pos = Vector3(x * scale * 2, scale * 2, z * scale * 2);
-            if (val == 'x') {
+            Vector3 pos = Vector3(10 + x * scale * 2, scale * 2, 10 + z * scale * 2);
+            if (val[0] == 'x') {
                 AddCubeToWorld(
                     pos,
                     Vector3(scale * 1.01, scale * 1.01, scale * 1.01),
                     0.0f
                 );
-            } else if (val == 'g') {
+            } else if (val[0] == 'g') {
                 AddGoalToWorld(pos);
-            } else if (val == 's') {
+            } else if (val[0] == 's') {
                 spawns.push_back(pos);
+            } else if (val[0] == 'b') {
+                Bot* b = FindOrCreateBot("bot" + val.substr(1, 1));
+                b->patrolSites.push_back(Vector3(pos.x - 10, 0, pos.z - 10));
+                if (b->patrolSites.size() == 1) SpawnBot(b, pos);
             }
         }
     }
@@ -147,6 +152,8 @@ void Coursework::UpdateGame(float dt) {
 
     if (isServer) {
         physics->Update(dt);
+
+        UpdateBots(dt);
 
         // Lock ball in Y pos
         for(auto p : players) {
@@ -213,7 +220,7 @@ void Coursework::ReceivePacket(int type, GamePacket* payload, int source) {
 
     StringPacket* realPacket = (StringPacket*)payload;
     string msg = realPacket->GetStringFromData();
-    std::cout << "received message: " << msg << std::endl;
+    //std::cout << "received message: " << msg << std::endl;
 
     isServer ? ProcessClientMessage(msg) : ProcessServerMessage(msg);
 }
@@ -231,28 +238,40 @@ void Coursework::ProcessClientMessage(string msg) {
 }
 
 void Coursework::ProcessServerMessage(string msg) {
+    int index = 0;
     std::vector<string> words = split_string(msg, ' ');
 
-    if (currentLevel != stoi(words[0])) {
-        currentLevel = stoi(words[0]);
+    int serverLevel = stoi(words[index++]);
+    if (currentLevel != serverLevel) {
+        currentLevel = serverLevel;
         LoadLevel(levels[currentLevel]);
     }
 
-    int totalPlayers = stoi(words[1]);
-    int attributes = 4;
-
+    int totalPlayers = stoi(words[index++]);
     for(int i = 0; i < totalPlayers; i++) {
-        string name = words[i * attributes + 2];
-        Vector3 pos(
-            stof(words[i * attributes + 3]),
-            stof(words[i * attributes + 4]),
-            stof(words[i * attributes + 5])
-        );
+        string name = words[index++];
+
+        float x = stof(words[index++]);
+        float y = stof(words[index++]);
+        float z = stof(words[index++]);
 
         Player* p = FindOrCreatePlayer(name);
-        SpawnPlayer(p, pos);
+        SpawnPlayer(p, Vector3(x, y, z));
     }
     if (me == nullptr && players.size() > 0) me = players[players.size() - 1];
+
+    // for(auto b : bots) delete b;
+    // bots.clear();
+
+    int totalBots = stoi(words[index++]);
+    for(int i = 0; i < totalBots; i++) {
+        string name = words[index++];
+        float x = stof(words[index++]);
+        float y = stof(words[index++]);
+        float z = stof(words[index++]);
+
+        // AddBotToWorld(Vector3(x, y, z));
+    }
 }
 
 string Coursework::SerializeState() {
@@ -262,6 +281,15 @@ string Coursework::SerializeState() {
     for(auto p : players) {
         Vector3 pos = p->ball->GetTransform().GetWorldPosition();
         buffer << p->name << " "
+               << pos.x << " "
+               << pos.y << " "
+               << pos.z << " ";
+    }
+
+    buffer << bots.size() << " ";
+    for(auto b : bots) {
+        Vector3 pos = b->cube->GetTransform().GetWorldPosition();
+        buffer << b->name << " "
                << pos.x << " "
                << pos.y << " "
                << pos.z << " ";
@@ -312,6 +340,36 @@ void Coursework::AddGoalToWorld(Vector3 pos) {
     goal->SetName("goal");
 }
 
+Bot* Coursework::FindOrCreateBot(string name) {
+    for(auto b : bots) {
+        if (b->name == name) return b;
+    }
+
+    Bot* b = new Bot;
+    b->name = name;
+    bots.push_back(b);
+
+    return b;
+}
+
+void Coursework::SpawnBot(Bot* b, Vector3 pos) {
+    int scale = 4;
+
+    if (b->cube == nullptr) {
+        b->cube = AddCubeToWorld(
+            Vector3(pos.x, 10 + scale, pos.z),
+            Vector3(scale, scale, scale),
+            0.0f
+        );
+        b->cube->GetRenderObject()->SetColour(Vector4(0, 0, 1, 1));
+        b->cube->SetName(b->name);
+    } else {
+        b->cube->GetTransform().SetWorldPosition(
+            Vector3(pos.x, 10 + scale, pos.z)
+        );
+    }
+}
+
 void Coursework::Shoot(Player* p, Vector3 originalPos, float power) {
     Vector3 ballPos = p->ball->GetTransform().GetWorldPosition();
 
@@ -326,4 +384,118 @@ void Coursework::Shoot(Player* p, Vector3 originalPos, float power) {
         ray.GetDirection().Normalised() * -power,
         closestCollision.collidedAt
     );
+}
+
+void Coursework::UpdateBots(float dt) {
+    for(auto b : bots) {
+        b->dtsum += dt;
+        if (b->dtsum > b->cooldown) {
+            b->dtsum = 0;
+            ChooseBotState(b);
+        }
+        DebugPath(b);
+        MoveBot(b, dt);
+    }
+}
+
+vector<Vector3> Coursework::FindPath(Bot* b, Vector3 target) {
+    vector<Vector3> path;
+
+    NavigationGrid grid(levels[currentLevel]);
+    NavigationPath outPath;
+
+    bool found = grid.FindPath(
+        b->cube->GetTransform().GetWorldPosition(),
+        target,
+        outPath
+    );
+
+	Vector3 pos;
+	while(outPath.PopWaypoint(pos)) path.push_back(pos);
+
+    // Remove initialPos
+    if (path.size() > 0) path.erase(path.begin() + 0);
+
+    return path;
+}
+
+void Coursework::DebugPath(Bot* b) {
+    if (!debug) return;
+
+    for(int i = 1; i < b->path.size(); i++) {
+        Vector3 p1 = b->path[i - 1];
+        Vector3 p2 = b->path[i];
+
+        Vector3 offset = Vector3(10, 0, 10);
+
+        Debug::DrawLine(p1 + offset, p2 + offset, Vector4(0, 1, 0, 1));
+    }
+}
+
+void Coursework::MoveBot(Bot* b, float dt) {
+    if (b->path.size() == 0) return;
+
+    Vector3 offset = Vector3(10, 14, 10);
+    Vector3 currPos = b->cube->GetTransform().GetWorldPosition();
+    Vector3 target = b->path[0] + offset;
+
+    Vector3 direction = target - currPos;
+
+    if (direction.Length() < 0.2) {
+        b->path.erase(b->path.begin() + 0);
+    } else {
+        direction.Normalise();
+        b->cube->GetTransform().SetWorldPosition(currPos + direction * dt * b->speed);
+    }
+}
+
+void Coursework::ChooseBotState(Bot* b) {
+    vector<Vector3> pathToPlayer =
+        FindPath(b, players[0]->ball->GetTransform().GetWorldPosition());
+
+    // if (pathToPlayer.size() < b->followDistance)
+    //     b->state = Following;
+    // else if (b->state != Patrolling)
+    //     b->state = Returning;
+    // else
+    //     b->state = Patrolling;
+
+    switch (b->state) {
+        case Following:
+            if (pathToPlayer.size() > b->followDistance) {
+                b->state = Returning;
+                b->path.clear();
+                return;
+            }
+
+            b->path.clear();
+            b->path = vector<Vector3>(pathToPlayer);
+        break;
+        case Returning:
+            if (pathToPlayer.size() <= b->followDistance) {
+                b->state = Following;
+                b->path.clear();
+                return;
+            }
+
+            b->path.clear();
+            b->path = FindPath(b, b->patrolSites[0]);
+
+            if (b->path.size() < 1) {
+                b->path.clear();
+                b->state = Patrolling;
+            }
+
+        break;
+        case Patrolling:
+            if (pathToPlayer.size() <= b->followDistance) {
+                b->state = Following;
+                b->path.clear();
+                return;
+            }
+
+            if (b->path.size() == 0)
+                b->path = vector<Vector3>(b->patrolSites);
+        break;
+    }
 }
