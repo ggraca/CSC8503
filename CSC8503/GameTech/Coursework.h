@@ -12,7 +12,8 @@
 enum BotState {
     Following,
     Returning,
-    Patrolling
+    Patrolling,
+    Dead // :(
 };
 
 namespace NCL {
@@ -31,9 +32,11 @@ namespace NCL {
             vector<Vector3> patrolSites;
             BotState state = Patrolling;
             float speed = 30.0f;
-            float cooldown = 0.2;
-            float dtsum = cooldown;
-            int followDistance = 8;
+            float decisionCD = 0.2f;
+            float decisionDT = decisionCD;
+            float deadCD = 10;
+            float deadDT = 0;
+            int followDistance = 6;
         };
 
         class Coursework : public TutorialGame, public PacketReceiver {
@@ -65,7 +68,7 @@ namespace NCL {
             vector<Vector3> FindPath(Bot* b, Vector3 target);
             void DebugPath(Bot* b);
             void MoveBot(Bot* b, float dt);
-            void ChooseBotState(Bot* b);
+            void ChooseBotState(Bot* b, float dt);
 
             const float ballRadius = 3.0f;
             bool shooting;

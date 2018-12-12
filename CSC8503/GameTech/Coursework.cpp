@@ -153,8 +153,6 @@ void Coursework::UpdateGame(float dt) {
     if (isServer) {
         physics->Update(dt);
 
-        UpdateBots(dt);
-
         // Lock ball in Y pos
         for(auto p : players) {
             Vector3 ballPos = p->ball->GetTransform().GetWorldPosition();
@@ -162,6 +160,8 @@ void Coursework::UpdateGame(float dt) {
                 Vector3(ballPos.x, 10 + ballRadius, ballPos.z)
             );
         }
+
+        UpdateBots(dt);
 
         if (goal->GetWinner() != nullptr) {
             std::cout << goal->GetName() << " won the game!" << std::endl;
@@ -175,10 +175,31 @@ void Coursework::UpdateGame(float dt) {
                 SpawnPlayer(players[i], spawns[i]);
         }
 
+        for(auto b : bots) {
+            if (b->cube->killBot) {
+                b->state = Dead;
+                b->cube->killBot = false;
+
+                if (b->cube->killerName != "") {
+                    Player* p = FindOrCreatePlayer(b->cube->killerName);
+                    p->kills++;
+                    b->cube->killerName = "";
+                }
+            }
+        }
+
         server->SendGlobalPacket(StringPacket(SerializeState()));
     }
 
     if (me != nullptr) UpdateInput(dt);
+
+    for(int i = 0; i < players.size(); i++) {
+        renderer->DrawString(
+            players[i]->name + ": " + to_string(players[i]->wins) + " | " + to_string(players[i]->kills),
+            Vector2(10, 30 * i + 10)
+        );
+    }
+
 
     Debug::FlushRenderables();
     renderer->Render();
@@ -212,7 +233,7 @@ void Coursework::UpdateInput(float dt) {
             client->SendPacket(StringPacket(SerializePlay()));
     }
 
-    renderer->DrawString("Click Force:" + std::to_string(int(forceMagnitude) / 1000), Vector2(10, 20));
+    renderer->DrawString("Power: " + std::to_string(int(forceMagnitude) / 1000), Vector2(990, 10));
 }
 
 void Coursework::ReceivePacket(int type, GamePacket* payload, int source) {
@@ -270,7 +291,8 @@ void Coursework::ProcessServerMessage(string msg) {
         float y = stof(words[index++]);
         float z = stof(words[index++]);
 
-        // AddBotToWorld(Vector3(x, y, z));
+        Bot* b = FindOrCreateBot(name);
+        SpawnBot(b, Vector3(x, y, z));
     }
 }
 
@@ -359,7 +381,7 @@ void Coursework::SpawnBot(Bot* b, Vector3 pos) {
         b->cube = AddCubeToWorld(
             Vector3(pos.x, 10 + scale, pos.z),
             Vector3(scale, scale, scale),
-            0.0f
+            0.01f
         );
         b->cube->GetRenderObject()->SetColour(Vector4(0, 0, 1, 1));
         b->cube->SetName(b->name);
@@ -388,10 +410,10 @@ void Coursework::Shoot(Player* p, Vector3 originalPos, float power) {
 
 void Coursework::UpdateBots(float dt) {
     for(auto b : bots) {
-        b->dtsum += dt;
-        if (b->dtsum > b->cooldown) {
-            b->dtsum = 0;
-            ChooseBotState(b);
+        b->decisionDT += dt;
+        if (b->decisionDT > b->decisionCD) {
+            b->decisionDT = 0;
+            ChooseBotState(b, dt);
         }
         DebugPath(b);
         MoveBot(b, dt);
@@ -446,19 +468,13 @@ void Coursework::MoveBot(Bot* b, float dt) {
     } else {
         direction.Normalise();
         b->cube->GetTransform().SetWorldPosition(currPos + direction * dt * b->speed);
+        b->cube->GetTransform().SetLocalOrientation(Quaternion(Vector3(0, 0, 0), 1));
     }
 }
 
-void Coursework::ChooseBotState(Bot* b) {
+void Coursework::ChooseBotState(Bot* b, float dt) {
     vector<Vector3> pathToPlayer =
         FindPath(b, players[0]->ball->GetTransform().GetWorldPosition());
-
-    // if (pathToPlayer.size() < b->followDistance)
-    //     b->state = Following;
-    // else if (b->state != Patrolling)
-    //     b->state = Returning;
-    // else
-    //     b->state = Patrolling;
 
     switch (b->state) {
         case Following:
@@ -485,7 +501,6 @@ void Coursework::ChooseBotState(Bot* b) {
                 b->path.clear();
                 b->state = Patrolling;
             }
-
         break;
         case Patrolling:
             if (pathToPlayer.size() <= b->followDistance) {
@@ -496,6 +511,17 @@ void Coursework::ChooseBotState(Bot* b) {
 
             if (b->path.size() == 0)
                 b->path = vector<Vector3>(b->patrolSites);
+        break;
+        case Dead:
+            SpawnBot(b, b->patrolSites[0] + Vector3(-1000, 0, -1000));
+
+            b->deadDT += b->decisionCD;
+            if (b->deadDT < b->deadCD) return;
+
+            b->deadDT = 0;
+            Vector3 offset = Vector3(10, 0, 10);
+            SpawnBot(b, b->patrolSites[0] + offset);
+            b->state = Patrolling;
         break;
     }
 }

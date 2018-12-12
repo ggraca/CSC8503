@@ -68,10 +68,28 @@ namespace NCL {
 			}
 
 			virtual void OnCollisionBegin(GameObject* otherObject) {
-				if (name != "goal") return;
-				if (otherObject->name == "") return;
+				if (name == "goal") {
+					if (otherObject->name == "") return;
+					if (winner == nullptr) winner = otherObject;
+				} else if (name.substr(0, 3) == "bot") {
+					if (otherObject->name.substr(0, 3) == "bot") {
+						std::cout << "bot collision with bot" << std::endl;
+						killBot = true;
+					}
+					else if (otherObject->name != "") {
+						std::cout << "bot collision with player" << std::endl;
 
-				if (winner == nullptr) winner = otherObject;
+						if (otherObject->GetPhysicsObject()->GetLinearVelocity().Length() < 300) {
+							otherObject->GetPhysicsObject()->AddForce(
+								Vector3(rand(), 0, rand()).Normalised() * 15000
+							);
+						} else {
+							killBot = true;
+							killerName = otherObject->name;
+						}
+
+					}
+				}
 			}
 
 			virtual void OnCollisionEnd(GameObject* otherObject) {
@@ -83,6 +101,8 @@ namespace NCL {
 			GameObject* GetWinner() const {
 				return winner;
 			}
+			bool killBot = false;
+			string killerName = "";
 		protected:
 			Transform			transform;
 
