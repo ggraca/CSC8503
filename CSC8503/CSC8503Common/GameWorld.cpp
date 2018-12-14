@@ -21,10 +21,14 @@ GameWorld::~GameWorld()	{
 
 void GameWorld::Clear() {
 	gameObjects.clear();
+	constraints.clear();
 }
 
 void GameWorld::ClearAndErase() {
 	for (auto& i : gameObjects) {
+		delete i;
+	}
+	for(auto& i : constraints) {
 		delete i;
 	}
 	Clear();
@@ -85,8 +89,8 @@ bool GameWorld::Raycast(Ray& r, RayCollision& closestCollision, bool closestObje
 		}
 		RayCollision thisCollision;
 		if (CollisionDetection::RayIntersection(r, *i, thisCollision)) {
-				
-			if (!closestObject) {	
+
+			if (!closestObject) {
 				closestCollision		= collision;
 				closestCollision.node = i;
 				return true;

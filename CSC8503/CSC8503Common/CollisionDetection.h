@@ -25,7 +25,7 @@ namespace NCL {
 		};
 		struct CollisionInfo {
 			GameObject* a;
-			GameObject* b;		
+			GameObject* b;
 			mutable int		framesLeft;
 
 			ContactPoint point;
@@ -76,6 +76,9 @@ namespace NCL {
 		static bool AABBSphereIntersection(	const AABBVolume& volumeA	 , const Transform& worldTransformA,
 										const SphereVolume& volumeB, const Transform& worldTransformB, CollisionInfo& collisionInfo);
 
+    static bool OBBSphereIntersection(const OBBVolume& volumeA, const Transform& worldTransformA,
+                    const SphereVolume& volumeB, const Transform& worldTransformB, CollisionInfo& collisionInfo);
+
 		static bool OBBIntersection(	const OBBVolume& volumeA, const Transform& worldTransformA,
 										const OBBVolume& volumeB, const Transform& worldTransformB, CollisionInfo& collisionInfo);
 
@@ -88,10 +91,9 @@ namespace NCL {
 	protected:
 
 
-	
+
 	private:
 		CollisionDetection()	{}
 		~CollisionDetection()	{}
 	};
 }
-

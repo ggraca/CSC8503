@@ -17,7 +17,7 @@ using namespace CSC8503;
 
 
 Coursework::Coursework() : TutorialGame() {
-    physics->SetGravity(Vector3(0, -2000, 0));
+    physics->SetGravity(Vector3(0, -4, 0));
     physics->UseGravity(false);
     world->ShuffleConstraints(true);
     world->ShuffleObjects(true);
@@ -27,15 +27,17 @@ Coursework::Coursework() : TutorialGame() {
 
     InitNetwork();
 
-    levels.push_back("level3.txt");
+    levels.push_back("menu.txt");
     levels.push_back("level1.txt");
     levels.push_back("level2.txt");
+    levels.push_back("level3.txt");
 
     if (isServer) {
         currentLevel = 0;
         LoadLevel(levels[currentLevel]);
         me = FindOrCreatePlayer("server");
         SpawnPlayer(me, spawns[0]);
+        ResetCamera();
     } else {
       ;
     }
@@ -76,7 +78,7 @@ void Coursework::ResetWorld() {
     for (auto p : players) p->ball = nullptr;
     bots.clear();
     spawns.clear();
-    goal = nullptr;
+    goals.clear();
 
     shooting = false;
 
@@ -113,19 +115,59 @@ void Coursework::LoadLevel(string levelName) {
                 spawns.push_back(pos);
             } else if (val[0] == 'b') {
                 Bot* b = FindOrCreateBot("bot" + val.substr(1, 1));
-                b->patrolSites.push_back(Vector3(pos.x - 10, 0, pos.z - 10));
-                if (b->patrolSites.size() == 1) SpawnBot(b, pos);
+
+                Vector3 patrolPos = Vector3(pos.x, 14, pos.z);
+                int index = stoi(val.substr(2, 1));
+
+                while (b->patrolSites.size() < index)
+                    b->patrolSites.push_back(patrolPos);
+
+                b->patrolSites[index - 1] = patrolPos;
+            } else if (val[0] == 'c') {
+                AddBridgeToWorld(pos);
             }
         }
+    }
+
+    for(auto b : bots) {
+        if (b->patrolSites.size() > 0) SpawnBot(b, b->patrolSites[0]);
     }
 }
 
 Coursework::~Coursework() {
     NetworkBase::Destroy();
-    if (isServer) {
-        string filename = Assets::DATADIR + "networkstatus.txt";
+    if (!isServer) return;
+
+    // Reset Status
+    string filename = Assets::DATADIR + "networkstatus.txt";
+    std::ofstream outfile(filename);
+    outfile << 0;
+    outfile.close();
+
+    // Save Highscore
+    string playerName;
+    int mostWins = -1;
+    int mostKills = -1;
+
+    for(auto p : players) {
+        if (p->wins > mostWins || (p->wins == mostWins && p->kills > mostKills)) {
+            mostWins = p->wins;
+            mostKills = p->kills;
+            playerName = p->name;
+        }
+    }
+
+    string buffer;
+    int savedWins, savedKills;
+
+    filename = Assets::DATADIR + "highscore.txt";
+    std::ifstream infile(filename);
+    infile >> buffer >> savedWins >> savedKills;
+    outfile.close();
+
+    if (mostWins > savedWins || (mostWins == savedWins && mostKills > savedKills)) {
         std::ofstream outfile(filename);
-        outfile << 0;
+        outfile << playerName << " " << mostWins << " " << mostKills;
         outfile.close();
     }
 }
@@ -146,6 +188,7 @@ void Coursework::UpdateGame(float dt) {
         client->UpdateClient();
     }
 
+
     world->GetMainCamera()->UpdateCamera(dt);
     world->UpdateWorld(dt);
     renderer->Update(dt);
@@ -162,17 +205,31 @@ void Coursework::UpdateGame(float dt) {
         }
 
         UpdateBots(dt);
+        ServerInput();
 
-        if (goal->GetWinner() != nullptr) {
-            std::cout << goal->GetName() << " won the game!" << std::endl;
+        for(int i = 0; i < goals.size(); i++) {
+            GameObject* goal = goals[i];
 
-            currentLevel++;
-            if (currentLevel > levels.size() - 1) currentLevel = 0;
+            if (goal->GetWinner() == nullptr) continue;
+
+            // Menu
+            if (goals.size() > 1) {
+                currentLevel = i + 1;
+            } else {
+                std::cout << goal->GetName() << " won the game!" << std::endl;
+                Player* p = FindOrCreatePlayer(goal->GetWinner()->GetName());
+                p->wins++;
+
+                currentLevel++;
+                if (currentLevel > levels.size() - 1) currentLevel = 1;
+            }
 
             LoadLevel(levels[currentLevel]);
 
             for(int i = 0; i < players.size(); i++)
                 SpawnPlayer(players[i], spawns[i]);
+
+            ResetCamera();
         }
 
         for(auto b : bots) {
@@ -191,7 +248,17 @@ void Coursework::UpdateGame(float dt) {
         server->SendGlobalPacket(StringPacket(SerializeState()));
     }
 
-    if (me != nullptr) UpdateInput(dt);
+    if (me != nullptr) {
+        UpdateInput(dt);
+
+        Vector3 ballPos = me->ball->GetTransform().GetWorldPosition();
+        Vector3 cameraPos = world->GetMainCamera()->GetPosition();
+        Vector3 dir = ballPos - cameraPos;
+        dir.y = 0;
+        dir.Normalise();
+
+        Debug::DrawLine(ballPos, ballPos + dir * forceMagnitude / 200, Vector4(1, 0, 0, 1));
+    }
 
     for(int i = 0; i < players.size(); i++) {
         renderer->DrawString(
@@ -201,11 +268,50 @@ void Coursework::UpdateGame(float dt) {
     }
 
 
+
     Debug::FlushRenderables();
     renderer->Render();
 }
 
+void Coursework::ServerInput() {
+    if (Window::GetKeyboard()->KeyPressed(KEYBOARD_RIGHT)) {
+        currentLevel++;
+        if (currentLevel > levels.size() - 1) currentLevel = 1;
+
+        LoadLevel(levels[currentLevel]);
+
+        for(int i = 0; i < players.size(); i++)
+            SpawnPlayer(players[i], spawns[i]);
+
+        ResetCamera();
+	}
+
+    if (Window::GetKeyboard()->KeyPressed(KEYBOARD_LEFT)) {
+        currentLevel--;
+        if (currentLevel < 1) currentLevel = levels.size() - 1;
+
+        LoadLevel(levels[currentLevel]);
+
+        for(int i = 0; i < players.size(); i++)
+            SpawnPlayer(players[i], spawns[i]);
+
+        ResetCamera();
+	}
+
+    if (Window::GetKeyboard()->KeyPressed(KEYBOARD_R)) {
+        LoadLevel(levels[currentLevel]);
+
+        for(int i = 0; i < players.size(); i++)
+            SpawnPlayer(players[i], spawns[i]);
+
+        ResetCamera();
+	}
+}
+
 void Coursework::UpdateInput(float dt) {
+    if (Window::GetKeyboard()->KeyPressed(KEYBOARD_R))
+        ResetCamera();
+
     // TODO: reset level
     // TODO: reset camera
 
@@ -216,13 +322,13 @@ void Coursework::UpdateInput(float dt) {
 
     if (!shooting && Window::GetMouse()->ButtonDown(NCL::MouseButtons::MOUSE_LEFT)){
         shooting = true;
-        shootingTimestamp = rand();
+        shootingTimestamp = 1;
     }
     else if (Window::GetMouse()->ButtonDown(NCL::MouseButtons::MOUSE_LEFT)) {
         shootingTimestamp += dt;
 
         int speed = 3, magnitude = 8000;
-        forceMagnitude = (sin(shootingTimestamp * speed) + 1) * magnitude;
+        forceMagnitude = (cos(shootingTimestamp * speed) + 1) * magnitude + 1000;
     }
     else if (shooting && !Window::GetMouse()->ButtonDown(NCL::MouseButtons::MOUSE_LEFT)) {
         shooting = false;
@@ -231,6 +337,8 @@ void Coursework::UpdateInput(float dt) {
             Shoot(me, world->GetMainCamera()->GetPosition(), forceMagnitude);
         else
             client->SendPacket(StringPacket(SerializePlay()));
+
+        forceMagnitude = 1000;
     }
 
     renderer->DrawString("Power: " + std::to_string(int(forceMagnitude) / 1000), Vector2(990, 10));
@@ -260,12 +368,14 @@ void Coursework::ProcessClientMessage(string msg) {
 
 void Coursework::ProcessServerMessage(string msg) {
     int index = 0;
+    bool resetLevel = false;
     std::vector<string> words = split_string(msg, ' ');
 
     int serverLevel = stoi(words[index++]);
     if (currentLevel != serverLevel) {
         currentLevel = serverLevel;
         LoadLevel(levels[currentLevel]);
+        resetLevel = true;
     }
 
     int totalPlayers = stoi(words[index++]);
@@ -278,8 +388,12 @@ void Coursework::ProcessServerMessage(string msg) {
 
         Player* p = FindOrCreatePlayer(name);
         SpawnPlayer(p, Vector3(x, y, z));
+
+        p->wins = stoi(words[index++]);
+        p->kills = stoi(words[index++]);
     }
-    if (me == nullptr && players.size() > 0) me = players[players.size() - 1];
+    if (me == nullptr && players.size() > 0)
+        me = players[players.size() - 1];
 
     // for(auto b : bots) delete b;
     // bots.clear();
@@ -294,6 +408,8 @@ void Coursework::ProcessServerMessage(string msg) {
         Bot* b = FindOrCreateBot(name);
         SpawnBot(b, Vector3(x, y, z));
     }
+
+    if (resetLevel) ResetCamera();
 }
 
 string Coursework::SerializeState() {
@@ -305,7 +421,9 @@ string Coursework::SerializeState() {
         buffer << p->name << " "
                << pos.x << " "
                << pos.y << " "
-               << pos.z << " ";
+               << pos.z << " "
+               << p->wins << " "
+               << p->kills << " ";
     }
 
     buffer << bots.size() << " ";
@@ -357,9 +475,11 @@ void Coursework::SpawnPlayer(Player* p, Vector3 pos) {
 }
 
 void Coursework::AddGoalToWorld(Vector3 pos) {
-    goal = AddSphereToWorld(Vector3(pos.x, 5, pos.z), 10, 0.0f);
+    GameObject* goal = AddSphereToWorld(Vector3(pos.x, 5, pos.z), 10, 0.0f);
     goal->GetRenderObject()->SetColour(Vector4(1, 0, 0, 1));
     goal->SetName("goal");
+
+    goals.push_back(goal);
 }
 
 Bot* Coursework::FindOrCreateBot(string name) {
@@ -385,6 +505,8 @@ void Coursework::SpawnBot(Bot* b, Vector3 pos) {
         );
         b->cube->GetRenderObject()->SetColour(Vector4(0, 0, 1, 1));
         b->cube->SetName(b->name);
+        OBBVolume* volume = new OBBVolume(Vector3(scale, scale, scale));
+    	b->cube->SetBoundingVolume((CollisionVolume*)volume);
     } else {
         b->cube->GetTransform().SetWorldPosition(
             Vector3(pos.x, 10 + scale, pos.z)
@@ -433,10 +555,14 @@ vector<Vector3> Coursework::FindPath(Bot* b, Vector3 target) {
     );
 
 	Vector3 pos;
-	while(outPath.PopWaypoint(pos)) path.push_back(pos);
+    Vector3 offset = Vector3(10, 14, 10);
+	while(outPath.PopWaypoint(pos)) path.push_back(pos + offset);
 
     // Remove initialPos
-    if (path.size() > 0) path.erase(path.begin() + 0);
+    if (path.size() > 0) path.erase(path.begin());
+
+    // Improve last position
+    path.push_back(target);
 
     return path;
 }
@@ -448,19 +574,15 @@ void Coursework::DebugPath(Bot* b) {
         Vector3 p1 = b->path[i - 1];
         Vector3 p2 = b->path[i];
 
-        Vector3 offset = Vector3(10, 0, 10);
-
-        Debug::DrawLine(p1 + offset, p2 + offset, Vector4(0, 1, 0, 1));
+        Debug::DrawLine(p1, p2, Vector4(0, 1, 0, 1));
     }
 }
 
 void Coursework::MoveBot(Bot* b, float dt) {
     if (b->path.size() == 0) return;
 
-    Vector3 offset = Vector3(10, 14, 10);
     Vector3 currPos = b->cube->GetTransform().GetWorldPosition();
-    Vector3 target = b->path[0] + offset;
-
+    Vector3 target = b->path[0];
     Vector3 direction = target - currPos;
 
     if (direction.Length() < 0.2) {
@@ -473,8 +595,18 @@ void Coursework::MoveBot(Bot* b, float dt) {
 }
 
 void Coursework::ChooseBotState(Bot* b, float dt) {
-    vector<Vector3> pathToPlayer =
-        FindPath(b, players[0]->ball->GetTransform().GetWorldPosition());
+    vector<Vector3> pathToPlayer;
+    int bestSize = 1000;
+
+    for(auto p : players) {
+        vector<Vector3> newPath =
+            FindPath(b, p->ball->GetTransform().GetWorldPosition());
+
+        if (newPath.size() < bestSize) {
+            pathToPlayer = vector<Vector3>(newPath);
+            bestSize = newPath.size();
+        }
+    }
 
     switch (b->state) {
         case Following:
@@ -497,7 +629,7 @@ void Coursework::ChooseBotState(Bot* b, float dt) {
             b->path.clear();
             b->path = FindPath(b, b->patrolSites[0]);
 
-            if (b->path.size() < 1) {
+            if (b->path.size() < 2) {
                 b->path.clear();
                 b->state = Patrolling;
             }
@@ -514,14 +646,45 @@ void Coursework::ChooseBotState(Bot* b, float dt) {
         break;
         case Dead:
             SpawnBot(b, b->patrolSites[0] + Vector3(-1000, 0, -1000));
+            b->path.clear();
 
             b->deadDT += b->decisionCD;
             if (b->deadDT < b->deadCD) return;
 
             b->deadDT = 0;
-            Vector3 offset = Vector3(10, 0, 10);
-            SpawnBot(b, b->patrolSites[0] + offset);
+            SpawnBot(b, b->patrolSites[0]);
             b->state = Patrolling;
         break;
     }
+}
+
+void Coursework::ResetCamera() {
+    Vector3 offset = Vector3(0, 200, 100);
+    world->GetMainCamera()->SetPosition(me->ball->GetTransform().GetWorldPosition() + offset);
+    world->GetMainCamera()->SetYaw(0);
+    world->GetMainCamera()->SetPitch(-45);
+}
+
+void Coursework::AddBridgeToWorld(Vector3 pos) {
+    Vector3 cubeSize = Vector3 (3, 3, 3);
+
+    float invCubeMass = 5; // how heavy the middle pieces are
+    int numLinks = 4;
+    float maxDistance = 12; // constraint distance
+    float cubeDistance = 10; // distance between links
+    Vector3 startPos = Vector3(pos.x, 13, pos.z);
+
+    GameObject* start = AddCubeToWorld(startPos + Vector3 (0, 0, 0), cubeSize, 0);
+    GameObject* end = AddCubeToWorld(startPos + Vector3 ((numLinks + 2) * cubeDistance, 0, 0), cubeSize, 0);
+    GameObject* previous = start ;
+
+    for (int i = 0; i < numLinks; ++i) {
+        GameObject* block = AddCubeToWorld(startPos + Vector3 ((i + 1) * cubeDistance, 0, 0), cubeSize, invCubeMass);
+        PositionConstraint* constraint =new PositionConstraint(previous, block, maxDistance);
+        world->AddConstraint(constraint);
+        previous = block;
+    }
+
+    PositionConstraint* constraint = new PositionConstraint(previous, end, maxDistance);
+    world->AddConstraint(constraint);
 }

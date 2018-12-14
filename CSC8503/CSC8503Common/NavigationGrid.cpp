@@ -61,7 +61,7 @@ NavigationGrid::NavigationGrid(const std::string&filename) : NavigationGrid() {
 			}
 			for(int i = 0; i < 4; ++i) {
 				if (n.connected[i]) {
-					if (n.connected[i]->type == 'x') {
+					if (n.connected[i]->type == 'x' || n.connected[i]->type == 'c') {
 						n.connected[i] = nullptr; //actually a wall, disconnect!
 					}
 					else {

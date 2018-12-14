@@ -15,7 +15,7 @@ TutorialGame::TutorialGame()	{
 	renderer	= new GameTechRenderer(*world);
 	physics		= new PhysicsSystem(*world);
 
-	forceMagnitude	= 1000.0f;
+	forceMagnitude	= 2000.0f;
 	useGravity		= false;
 	inSelectionMode = false;
 
@@ -172,7 +172,7 @@ void TutorialGame::InitWorld() {
 	//InitCubeCollisionTorqueTest(w);
 
 	//InitSphereGridWorld(w, 1, 1, 50.0f, 50.0f, 10.0f);
-	//BridgeConstraintTest(w);
+	BridgeConstraintTest();
 	//InitGJKWorld(w);
 
 	//DodgyRaycastTest(w);
@@ -354,27 +354,27 @@ void TutorialGame::InitGJKWorld() {
 }
 
 void TutorialGame::BridgeConstraintTest() {
-	float sizeMultiplier = 1.0f;
+	Vector3 cubeSize = Vector3 (8, 8, 8);
 
-	Vector3 cubeSize = Vector3(8, 8, 8) * sizeMultiplier;
+    float invCubeMass = 5; // how heavy the middle pieces are
+    int numLinks = 10;
+    float maxDistance = 30; // constraint distance
+    float cubeDistance = 20; // distance between links
+    Vector3 startPos = Vector3(0, 0, 0);
 
-	int numLinks = 5;
+    GameObject* start = AddCubeToWorld(startPos + Vector3 (0, 0, 0), cubeSize, 0);
+    GameObject* end = AddCubeToWorld(startPos + Vector3 ((numLinks + 2) * cubeDistance, 0, 0), cubeSize, 0);
+    GameObject* previous = start ;
 
-	GameObject* start = AddCubeToWorld(Vector3(0, 0, 0), cubeSize, 0);
+    for (int i = 0; i < numLinks; ++i) {
+        GameObject* block = AddCubeToWorld(startPos + Vector3 ((i + 1) * cubeDistance, 0, 0), cubeSize, invCubeMass);
+        PositionConstraint* constraint =new PositionConstraint(previous, block, maxDistance);
+        world->AddConstraint(constraint);
+        previous = block;
+    }
 
-	GameObject* end = AddCubeToWorld(Vector3((numLinks + 2) * 20 * sizeMultiplier, 0, 0), cubeSize, 0);
-
-	GameObject* previous = start;
-
-	for (int i = 0; i < numLinks; ++i) {
-		GameObject* block = AddCubeToWorld(Vector3((i + 1) * 20 * sizeMultiplier, 0, 0), cubeSize, 10.0f);
-		PositionConstraint* constraint = new PositionConstraint(previous, block, 30.0f);
-		world->AddConstraint(constraint);
-		previous = block;
-	}
-
-	PositionConstraint* constraint = new PositionConstraint(previous, end, 30.0f);
-	world->AddConstraint(constraint);
+    PositionConstraint* constraint = new PositionConstraint(previous, end, maxDistance);
+    world->AddConstraint(constraint);
 }
 
 void TutorialGame::SimpleGJKTest() {

@@ -360,6 +360,25 @@ bool CollisionDetection::ObjectIntersection(GameObject* a, GameObject* b, Collis
       		collisionInfo
     	);
   	}
+
+	if (volA->type == VolumeType::OBB && volB->type == VolumeType::Sphere) {
+    	return OBBSphereIntersection(
+      		(OBBVolume&)*volA, transformA,
+      		(SphereVolume&)*volB, transformB,
+      		collisionInfo
+    	);
+  	}
+
+  	if (volA->type == VolumeType::Sphere && volB->type == VolumeType::OBB) {
+    	collisionInfo.a = b;
+    	collisionInfo.b = a;
+
+    	return OBBSphereIntersection(
+      		(OBBVolume&)*volB, transformB,
+      		(SphereVolume&)*volA, transformA,
+      		collisionInfo
+    	);
+  	}
 	return false;
 }
 
@@ -498,4 +517,37 @@ bool CollisionDetection::OBBIntersection(
 	const OBBVolume& volumeA, const Transform& worldTransformA,
 	const OBBVolume& volumeB, const Transform& worldTransformB, CollisionInfo& collisionInfo) {
 	return false;
+}
+
+//OBB - Sphere Collision
+bool CollisionDetection::OBBSphereIntersection(const OBBVolume& volumeA, const Transform& worldTransformA,
+	const SphereVolume& volumeB, const Transform& worldTransformB, CollisionInfo& collisionInfo) {
+
+	Quaternion orientation = worldTransformA.GetWorldOrientation();
+	Vector3 position = worldTransformA.GetWorldPosition();
+
+	Matrix3 transform = orientation.ToMatrix3();
+	Matrix3 invTransform = orientation.Conjugate().ToMatrix3();
+
+	Vector3 boxSize = volumeA.GetHalfDimensions();
+
+	Vector3 delta =
+		worldTransformB.GetWorldPosition() -
+		worldTransformA.GetWorldPosition();
+
+    delta = invTransform *delta;
+
+	Vector3 closestPointOnBox = Maths::Clamp(delta, -boxSize, boxSize);
+	Vector3 localPoint = delta - closestPointOnBox;
+
+	float distance = localPoint.Length();
+	if (distance < volumeB.GetRadius()) {
+		collisionInfo.AddContactPoint(
+			transform * closestPointOnBox + worldTransformA.GetWorldPosition(),
+			distance == 0.0f ? delta.Normalised() : transform * localPoint.Normalised(),
+			volumeB.GetRadius() - distance
+		);
+		return true;
+	}
+  return false;
 }

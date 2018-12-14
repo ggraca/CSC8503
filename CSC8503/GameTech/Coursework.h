@@ -57,11 +57,14 @@ namespace NCL {
             void ResetWorld();
             void UpdateBots(float dt);
             void LoadLevel(string levelName);
+            void ServerInput();
+            void ResetCamera();
             void UpdateInput(float dt);
             void AddGoalToWorld(Vector3 pos);
             void SpawnPlayer(Player* p, Vector3 pos);
             Player* FindOrCreatePlayer(string name);
             void Shoot(Player* p, Vector3 originalPos, float forceMagnitude);
+            void AddBridgeToWorld(Vector3 pos);
 
             Bot* FindOrCreateBot(string name);
             void SpawnBot(Bot* b, Vector3 pos);
@@ -74,7 +77,6 @@ namespace NCL {
             bool shooting;
             float shootingTimestamp;
 
-            GameObject* goal;
 
             GameServer* server;
             GameClient* client;
@@ -83,6 +85,7 @@ namespace NCL {
             std::vector<Bot*> bots;
             std::vector<Player*> players;
             std::vector<string> levels;
+            std::vector<GameObject*> goals;
             int currentLevel = -1;
 
             bool debug = true;
